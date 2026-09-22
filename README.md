@@ -78,6 +78,31 @@ number; `categories` and `trend_breakdown` may be empty for some trends.
 To change the region or lookback window, edit `GEO` / `HOURS` at the top of
 `fetch_trends.py` (`hours` accepts 4, 24, 48, or 168).
 
+## Virtual room ("The screen going on and off")
+
+`td/build_virtual_room.py` builds the whole installation network
+programmatically (a virtual room with a floor screen that pulses on/off,
+showing one trending query at a time, and a light that brightens the room
+with each pulse).
+
+1. Open TouchDesigner, then the Textport (Alt+T).
+2. Run (adjust the path):
+
+   ```python
+   exec(open(r"C:\path\to\td\build_virtual_room.py", encoding="utf-8").read())
+   ```
+
+3. It creates `/project1/virtual_room` with sample trends. To load the real
+   daily data, paste `td/trends_loader.py` into a Text DAT **inside**
+   `/project1/virtual_room` (so it finds `trends_table` next to it), edit its
+   `LATEST_JSON` path, and run it — plus the Timer CHOP described below for
+   daily refresh.
+4. Fullscreen `/project1/virtual_room/OUT` on the real screen via a Window COMP.
+
+Tunables at the top of the script: room dimensions (`ROOM_W/H/D`), screen
+size, and `PULSE_PERIOD` (seconds per on/off cycle). The network is safe to
+rebuild: re-running the script replaces `/project1/virtual_room`.
+
 ## TouchDesigner wiring
 
 Build this small network once in your project:
