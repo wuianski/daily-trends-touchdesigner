@@ -1,6 +1,7 @@
 """Fetch Google Trends "Trending Now" queries (Taiwan) from SerpApi.
 
-Run manually:  python fetch_trends.py
+Run manually:  conda activate trends && python fetch_trends.py
+               (or double-click run_fetch.bat on Windows)
 Scheduled:     Windows Task Scheduler, daily at 06:00 (see install_task.bat).
 Reads the API key from config.json next to this script.
 

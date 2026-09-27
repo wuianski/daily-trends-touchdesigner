@@ -7,7 +7,8 @@ set "SCRIPT_DIR=%~dp0"
 set "TASK_NAME=TrendsFetch"
 
 rem Create (or overwrite) the daily 06:00 task.
-schtasks /Create /TN "%TASK_NAME%" /TR "python \"%SCRIPT_DIR%fetch_trends.py\"" /SC DAILY /ST 06:00 /F
+rem run_fetch.bat locates conda and runs fetch_trends.py inside the "trends" env.
+schtasks /Create /TN "%TASK_NAME%" /TR "\"%SCRIPT_DIR%run_fetch.bat\"" /SC DAILY /ST 06:00 /F
 if errorlevel 1 (
     echo Failed to create the scheduled task.
     pause

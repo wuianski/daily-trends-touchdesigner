@@ -20,13 +20,84 @@ fetch_trends.py ──► SerpApi (engine=google_trends_trending_now, geo=TW)
 ## Requirements
 
 - Windows 10/11
-- Python 3.9+ on PATH (standard library only, no pip installs)
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (or Anaconda / Miniforge)
 - A [SerpApi](https://serpapi.com/) API key
 - TouchDesigner
 
-## Setup
+The fetcher uses only the Python standard library. Conda is there so the
+scheduled task has a stable, isolated Python instead of depending on
+whatever `python` happens to be on PATH.
 
-1. Copy `config.example.json` to `config.json` and paste your SerpApi key:
+## First time on a new Windows machine
+
+Do these once, in order. After step 7 the fetch runs by itself every day
+at 06:00.
+
+1. Install [Git for Windows](https://git-scm.com/download/win) if `git`
+   is not already available.
+2. Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+   (or Anaconda / Miniforge). Tick "Add Miniconda to PATH" if offered,
+   or always use **Anaconda Prompt** for the next steps.
+3. Open **Anaconda Prompt** and clone the repo (pick any folder you like):
+
+   ```
+   cd %USERPROFILE%\Documents
+   git clone https://github.com/wuianski/daily-trends-touchdesigner.git
+   cd daily-trends-touchdesigner
+   ```
+
+4. Create the conda env:
+
+   ```
+   conda env create -f environment.yml
+   conda activate trends
+   ```
+
+5. Copy the config template and paste your SerpApi key into `config.json`:
+
+   ```
+   copy config.example.json config.json
+   notepad config.json
+   ```
+
+6. Test one fetch (needs internet):
+
+   ```
+   python fetch_trends.py
+   ```
+
+   Success looks like `Saved N trends to trends_YYYY-MM-DD.json and latest.json`.
+   Check `data\latest.json` and `logs\fetch.log`. If this fails, do not
+   install the scheduled task yet.
+
+7. Register the daily 06:00 task (still in this folder):
+
+   ```
+   install_task.bat
+   ```
+
+   Confirm: `schtasks /Query /TN "TrendsFetch"`
+   Remove later: `schtasks /Delete /TN "TrendsFetch" /F`
+
+The task calls `run_fetch.bat`, which finds conda and runs inside the
+`trends` env, so it works even when Anaconda Prompt is closed. If the PC
+was off at 06:00, Windows will run the task as soon as it can after boot.
+
+## Setup (Windows + conda)
+
+Open **Anaconda Prompt** or a terminal where `conda` works, then `cd` into
+this project folder.
+
+1. Create and activate the env (once):
+
+   ```
+   conda env create -f environment.yml
+   conda activate trends
+   ```
+
+   Later updates: `conda env update -f environment.yml --prune`
+
+2. Copy `config.example.json` to `config.json` and paste your SerpApi key:
 
    ```json
    { "serpapi_api_key": "your_real_key" }
@@ -34,20 +105,23 @@ fetch_trends.py ──► SerpApi (engine=google_trends_trending_now, geo=TW)
 
    `config.json` is git-ignored, so the key never gets committed.
 
-2. Test the fetcher manually:
+3. Test the fetcher:
 
    ```
    python fetch_trends.py
    ```
 
+   Or double-click `run_fetch.bat` (it finds conda and runs inside `trends`).
+
    On success it creates `data/latest.json` and `data/trends_YYYY-MM-DD.json`,
    and logs to `logs/fetch.log`. On failure it logs the error and leaves the
    previous `latest.json` untouched.
 
-3. Register the daily 06:00 task by double-clicking `install_task.bat`
-   (or running it in a terminal). It also enables "run as soon as possible
-   after a missed start", so the fetch still happens if the PC was off or
-   asleep at 06:00.
+4. Register the daily 06:00 task by double-clicking `install_task.bat`
+   (or running it in a terminal). The task calls `run_fetch.bat`, so it uses
+   the conda env even when no Anaconda Prompt is open. It also enables
+   "run as soon as possible after a missed start", so the fetch still happens
+   if the PC was off or asleep at 06:00.
 
    Verify: `schtasks /Query /TN "TrendsFetch"`
    Remove:  `schtasks /Delete /TN "TrendsFetch" /F`
@@ -138,9 +212,12 @@ written at that moment, it keeps the previous contents on screen.
 
 | File | Purpose |
 | --- | --- |
+| `environment.yml` | Conda env (`trends`, Python 3.11) |
 | `fetch_trends.py` | Daily fetcher (SerpApi -> JSON) |
+| `run_fetch.bat` | Runs the fetcher inside the conda env |
 | `config.example.json` | Template for `config.json` (API key) |
 | `install_task.bat` | Registers the 06:00 Windows scheduled task |
+| `td/build_virtual_room.py` | Builds the virtual-room network in TouchDesigner |
 | `td/trends_loader.py` | Script to paste into a TouchDesigner Text DAT |
 | `data/` | Generated JSON (git-ignored) |
 | `logs/fetch.log` | Fetch log (git-ignored) |
