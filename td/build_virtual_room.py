@@ -40,15 +40,51 @@ SCREEN_W, SCREEN_H = 1.6, 0.9      # floor screen, 16:9
 PULSE_PERIOD = 8.0                 # seconds for one full on/off cycle
 
 
+def get_par(node, name):
+    """Look up a parameter. TD's ParCollection raises tdAttributeError
+    (not AttributeError) when a name is missing, so getattr(..., None)
+    is not safe."""
+    try:
+        return node.par[name]
+    except Exception:
+        try:
+            return getattr(node.par, name)
+        except Exception:
+            return None
+
+
 def set_first_par(node, names, value):
     """Set the first existing parameter from names (handles TD version
-    differences, e.g. Text TOP fontsizex vs fontsize)."""
+    differences, e.g. Text TOP fontsizex vs fontsize, LFO amp vs amplitude)."""
     for n in names:
-        p = getattr(node.par, n, None)
-        if p is not None:
+        p = get_par(node, n)
+        if p is None:
+            continue
+        try:
             p.val = value
             return True
+        except Exception:
+            pass
+        try:
+            setattr(node.par, n, value)
+            return True
+        except Exception:
+            continue
     print('build_virtual_room: none of pars {} on {}'.format(names, node.path))
+    return False
+
+
+def set_first_par_expr(node, names, expr):
+    for n in names:
+        p = get_par(node, n)
+        if p is None:
+            continue
+        try:
+            p.expr = expr
+            return True
+        except Exception:
+            continue
+    print('build_virtual_room: none of expr pars {} on {}'.format(names, node.path))
     return False
 
 
@@ -128,13 +164,10 @@ trend_index.par.value0 = 0
 # ---------------------------------------------------------- on/off rhythm
 pulse = base.create(lfoCHOP, 'pulse')
 pulse.nodeX, pulse.nodeY = 400, -200
-try:
-    pulse.par.type = 'square'
-except Exception:
-    print('build_virtual_room: could not set LFO type to square')
-pulse.par.frequency = 1.0 / PULSE_PERIOD
-pulse.par.amplitude = 0.5
-pulse.par.offset = 0.5             # square wave between 0 and 1
+set_first_par(pulse, ['type', 'wavetype', 'waveform'], 'square')
+set_first_par(pulse, ['frequency', 'freq', 'rate'], 1.0 / PULSE_PERIOD)
+set_first_par(pulse, ['amp', 'amplitude', 'gain'], 0.5)
+set_first_par(pulse, ['offset', 'off'], 0.5)   # square wave between 0 and 1
 
 cycler = base.create(chopexecuteDAT, 'trend_cycler')
 cycler.nodeX, cycler.nodeY = 600, -200
@@ -171,17 +204,14 @@ screen_text.par.text.expr = (
 screen_level = base.create(levelTOP, 'screen_level')
 screen_level.nodeX, screen_level.nodeY = 200, 0
 screen_level.inputConnectors[0].connect(screen_text)
-screen_level.par.opacity.expr = "op('pulse')[0]"
+set_first_par_expr(screen_level, ['opacity', 'opacity1'], "op('pulse')[0]")
 
 # ------------------------------------------------------ light from screen
 light = base.create(lightCOMP, 'screen_light')
 light.nodeX, light.nodeY = 1200, 200
-try:
-    light.par.lighttype = 'point'
-except Exception:
-    print('build_virtual_room: set screen_light type to point manually')
+set_first_par(light, ['lighttype', 'type'], 'point')
 light.par.ty = 1.2                 # hovering above the floor screen
-light.par.dimmer.expr = "op('pulse')[0]"
+set_first_par_expr(light, ['dimmer', 'intensity'], "op('pulse')[0]")
 
 # --------------------------------------------------------- camera + render
 cam = base.create(cameraCOMP, 'cam1')
