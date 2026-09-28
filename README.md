@@ -86,10 +86,12 @@ fetch runs by itself every day at 06:00.
    ```
 
    The task calls `run_fetch.bat`, so it uses the conda env even when
-   Anaconda Prompt is closed. If the PC was off at 06:00, Windows runs
-   the task as soon as it can after boot.
+   Anaconda Prompt is closed. It is also set to **wake the laptop from
+   sleep** at 06:00, and to **run as soon as possible** if 06:00 was missed
+   (lid closed, hibernate, or fully off). After running `install_task.bat`,
+   also set **Power Options → Sleep → Allow wake timers** to **Enable**.
 
-   Confirm: `schtasks /Query /TN "TrendsFetch"`
+   Confirm: `schtasks /Query /TN "TrendsFetch" /V /FO LIST`
    Remove later: `schtasks /Delete /TN "TrendsFetch" /F`
 
 ## Output format

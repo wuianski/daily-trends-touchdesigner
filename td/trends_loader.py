@@ -21,10 +21,17 @@ TEXT_TOP = 'trends_text'     # simple visible display of all trend queries
 
 
 def load_trends():
+    print('trends_loader: LATEST_JSON =', LATEST_JSON)
     try:
         with open(LATEST_JSON, encoding='utf-8') as f:
             doc = json.load(f)
-        return doc.get('trends', []), doc.get('fetched_at', '')
+        trends = doc.get('trends', [])
+        print('trends_loader: file OK, count={}, fetched_at={}'.format(
+            len(trends), doc.get('fetched_at', '')))
+        if trends:
+            first = trends[0]
+            print('trends_loader: first query =', first.get('query') if isinstance(first, dict) else first)
+        return trends, doc.get('fetched_at', '')
     except Exception as e:
         print('trends_loader: could not read {}: {}'.format(LATEST_JSON, e))
         return None, None
@@ -32,23 +39,29 @@ def load_trends():
 
 def update_ops(trends, fetched_at):
     table = op(TABLE_DAT)
-    if table is not None:
-        table.clear()
-        table.appendRow(['query', 'search_volume', 'categories', 'trend_breakdown'])
-        for t in trends:
+    if table is None:
+        print('trends_loader: missing DAT', TABLE_DAT, '- put this script inside /project1/virtual_room')
+        return
+    table.clear()
+    table.appendRow(['query', 'search_volume', 'categories', 'trend_breakdown'])
+    for t in trends:
+        if isinstance(t, dict):
             table.appendRow([
                 t.get('query', ''),
                 t.get('search_volume') or 0,
                 '; '.join(t.get('categories', [])),
                 '; '.join(t.get('trend_breakdown', [])),
             ])
+        else:
+            table.appendRow([str(t), 0, '', ''])
+    print('trends_loader: {} now has {} data rows (plus header)'.format(
+        table.path, table.numRows - 1))
 
     text_top = op(TEXT_TOP)
     if text_top is not None:
-        text_top.par.text = '\n'.join(t.get('query', '') for t in trends)
-
-    print('trends_loader: loaded {} trends (fetched_at={})'.format(
-        len(trends), fetched_at))
+        text_top.par.text = '\n'.join(
+            (t.get('query', '') if isinstance(t, dict) else str(t)) for t in trends
+        )
 
 
 trends, fetched_at = load_trends()

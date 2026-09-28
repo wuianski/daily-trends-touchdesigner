@@ -101,7 +101,20 @@ base = proj.create(baseCOMP, COMP_NAME)
 # ---------------------------------------------------------------- materials
 room_mat = base.create(phongMAT, 'room_mat')
 room_mat.nodeX, room_mat.nodeY = 0, 400
-room_mat.par.diffr = room_mat.par.diffg = room_mat.par.diffb = 0.55
+# No ambient / emission: walls are invisible until the screen light hits them.
+set_first_par(room_mat, ['ambr', 'ambientr'], 0)
+set_first_par(room_mat, ['ambg', 'ambientg'], 0)
+set_first_par(room_mat, ['ambb', 'ambientb'], 0)
+set_first_par(room_mat, ['emitr', 'emissionr'], 0)
+set_first_par(room_mat, ['emitg', 'emissiong'], 0)
+set_first_par(room_mat, ['emitb', 'emissionb'], 0)
+set_first_par(room_mat, ['specr', 'specularr'], 0)
+set_first_par(room_mat, ['specg', 'specularg'], 0)
+set_first_par(room_mat, ['specb', 'specularb'], 0)
+ONOFF = "1 if op('pulse')[0] > 0.5 else 0"
+set_first_par_expr(room_mat, ['diffr', 'diffuser'], ONOFF + '*0.12')
+set_first_par_expr(room_mat, ['diffg', 'diffuseg'], ONOFF + '*0.12')
+set_first_par_expr(room_mat, ['diffb', 'diffuseb'], ONOFF + '*0.12')
 
 screen_mat = base.create(constantMAT, 'screen_mat')
 screen_mat.nodeX, screen_mat.nodeY = 200, 400
@@ -144,9 +157,22 @@ rect.par.sizex = SCREEN_W
 rect.par.sizey = SCREEN_H
 rect.display = True
 rect.render = True
-screen_geo.par.rx = -90            # lay flat on the floor, facing up
-screen_geo.par.ty = 0.02           # just above the floor to avoid z-fighting
-screen_geo.par.material = '../screen_mat'
+screen_geo.render = True
+screen_geo.display = True
+# Prefer Rectangle SOP ZX plane (normal +Y). Extra rx=-90 on that plane
+# stands the screen on edge, so it disappears in OUT.
+laid_flat = False
+for val in ('zx', 'ZX', 'xz', 2):
+    if set_first_par(rect, ['orientation', 'orient', 'plane'], val):
+        laid_flat = True
+        break
+screen_geo.par.rx = 0 if laid_flat else -90
+screen_geo.par.ty = 0.05           # just above the floor to avoid z-fighting
+screen_geo.par.material = screen_mat.path
+set_first_par(screen_mat, ['colormap'], 'screen_level')
+set_first_par(screen_mat, ['usecolormap', 'applycolormap', 'colormapon'], True)
+set_first_par(screen_geo, ['cullface', 'cull'], 'off')
+set_first_par(screen_geo, ['twosided'], True)
 
 # ------------------------------------------------------------- trends data
 table = base.create(tableDAT, 'trends_table')
@@ -171,15 +197,29 @@ set_first_par(pulse, ['offset', 'off'], 0.5)   # square wave between 0 and 1
 
 cycler = base.create(chopexecuteDAT, 'trend_cycler')
 cycler.nodeX, cycler.nodeY = 600, -200
-cycler.par.chop = 'pulse'
-cycler.par.offtoon = True
+set_first_par(cycler, ['chop'], 'pulse')
+set_first_par(cycler, ['offtoon'], True)
+set_first_par(cycler, ['valuechange', 'onvaluechange'], False)
 cycler.text = '''# Advances to the next trend each time the screen turns on.
+# Stubs are required: newer TD errors if an enabled callback is missing.
 
 def onOffToOn(channel, sampleIndex, val, prev):
     table = op('trends_table')
     n = max(1, table.numRows - 1)
     idx = op('trend_index')
     idx.par.value0 = (int(idx.par.value0) + 1) % n
+    return
+
+def onOnToOff(channel, sampleIndex, val, prev):
+    return
+
+def onWhileOn(channel, sampleIndex, val, prev):
+    return
+
+def onWhileOff(channel, sampleIndex, val, prev):
+    return
+
+def onValueChange(channel, sampleIndex, val, prev):
     return
 '''
 
@@ -191,33 +231,53 @@ set_first_par(screen_text, ['resolutionh', 'resh'], 720)
 set_first_par(screen_text, ['fontsizex', 'fontsize'], 110)
 set_first_par(screen_text, ['alignx'], 'center')
 set_first_par(screen_text, ['aligny'], 'center')
+set_first_par(screen_text, ['fontcolorr', 'fontr'], 1)
+set_first_par(screen_text, ['fontcolorg', 'fontg'], 1)
+set_first_par(screen_text, ['fontcolorb', 'fontb'], 1)
+set_first_par(screen_text, ['bgcolorr', 'bgr'], 0)
+set_first_par(screen_text, ['bgcolorg', 'bgg'], 0)
+set_first_par(screen_text, ['bgcolorb', 'bgb'], 0)
+set_first_par(screen_text, ['bgalpha', 'bga', 'bgalpha1'], 1)
 try:
     screen_text.par.font = 'Microsoft JhengHei'   # CJK-capable font on Windows
 except Exception:
     print('build_virtual_room: set a CJK font on screen_text manually')
-screen_text.par.text.expr = (
-    "str(op('trends_table')["
-    "int(op('trend_index')[0]) % max(1, op('trends_table').numRows - 1) + 1,"
-    " 'query']) if op('trends_table').numRows > 1 else 'TRENDING'"
-)
+# Column 0 is "query". Avoid name lookup — it fails on some TD builds.
+text_par = get_par(screen_text, 'text')
+if text_par is not None:
+    text_par.expr = (
+        "str(op('trends_table')["
+        "int(op('trend_index')[0]) % max(1, op('trends_table').numRows - 1) + 1,"
+        " 0]) if op('trends_table').numRows > 1 else 'TRENDING'"
+    )
 
 screen_level = base.create(levelTOP, 'screen_level')
 screen_level.nodeX, screen_level.nodeY = 200, 0
 screen_level.inputConnectors[0].connect(screen_text)
-set_first_par_expr(screen_level, ['opacity', 'opacity1'], "op('pulse')[0]")
+# Fade RGB to black when off. Do not use opacity — that makes the floor show through.
+set_first_par(screen_level, ['opacity', 'opacity1'], 1)
+set_first_par_expr(screen_level, ['brightness1', 'bright1', 'gain1'], ONOFF)
+set_first_par(screen_mat, ['usealpha', 'applyalpha', 'alphamapon'], False)
 
 # ------------------------------------------------------ light from screen
 light = base.create(lightCOMP, 'screen_light')
 light.nodeX, light.nodeY = 1200, 200
 set_first_par(light, ['lighttype', 'type'], 'point')
-light.par.ty = 1.2                 # hovering above the floor screen
-set_first_par_expr(light, ['dimmer', 'intensity'], "op('pulse')[0]")
+light.par.tx = 0
+light.par.ty = 0.35                # just above the floor screen
+light.par.tz = 0
+set_first_par_expr(light, ['dimmer', 'intensity'], ONOFF + ' * 0.35')
+set_first_par(light, ['attenuate', 'atten'], True)
+set_first_par(light, ['quadatten', 'atten2', 'rolloff'], 0.8)
 
 # --------------------------------------------------------- camera + render
 cam = base.create(cameraCOMP, 'cam1')
 cam.nodeX, cam.nodeY = 1400, 200
-cam.par.ty = 1.6                   # eye height, looking into the open side
-cam.par.tz = ROOM_D / 2 + 2.5
+cam.par.tx = 0
+cam.par.ty = 2.4                   # slightly above eye height, looking down at the floor screen
+cam.par.tz = ROOM_D / 2 + 2.0
+if not set_first_par(cam, ['lookat', 'lookatpath'], screen_geo.path):
+    cam.par.rx = -28
 
 render = base.create(renderTOP, 'render1')
 render.nodeX, render.nodeY = 400, 0
@@ -225,11 +285,23 @@ set_first_par(render, ['resolutionw', 'resw'], 1920)
 set_first_par(render, ['resolutionh', 'resh'], 1080)
 render.par.camera = 'cam1'
 render.par.geometry = '*'
-render.par.lights = '*'
+render.par.lights = 'screen_light'
+set_first_par(render, ['bgcolorr', 'bgr'], 0)
+set_first_par(render, ['bgcolorg', 'bgg'], 0)
+set_first_par(render, ['bgcolorb', 'bgb'], 0)
+set_first_par(render, ['ambr', 'ambientr'], 0)
+set_first_par(render, ['ambg', 'ambientg'], 0)
+set_first_par(render, ['ambb', 'ambientb'], 0)
+
+out_level = base.create(levelTOP, 'out_level')
+out_level.nodeX, out_level.nodeY = 500, 0
+out_level.inputConnectors[0].connect(render)
+set_first_par_expr(out_level, ['brightness1', 'bright1', 'gain1'], ONOFF)
+set_first_par(out_level, ['opacity', 'opacity1'], 1)
 
 out = base.create(nullTOP, 'OUT')
 out.nodeX, out.nodeY = 600, 0
-out.inputConnectors[0].connect(render)
+out.inputConnectors[0].connect(out_level)
 out.viewer = True
 
 print('build_virtual_room: done -> {}'.format(base.path))
