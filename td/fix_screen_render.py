@@ -62,17 +62,9 @@ if mat is not None:
     setp(mat, ['cullface', 'cull'], 'off')
     setp(mat, ['twosided', 'doubleface'], True)
 
-# Lie in the floor plane. Newer Rectangle SOPs have Orientation = ZX (normal +Y).
-# If that par exists, do not also rotate -90 (that stands the screen on edge).
-laid_flat = False
-for val in ('zx', 'ZX', 'xz', 2):
-    if setp(rect, ['orientation', 'orient', 'plane'], val):
-        laid_flat = True
-        break
-if laid_flat:
-    geo.par.rx = 0
-else:
-    geo.par.rx = -90
+# Default rectangle is XY (vertical). Rotate -90 onto the floor.
+# Auto Orientation=ZX + look-at from above made the screen edge-on after git pull.
+geo.par.rx = -90
 geo.par.ry = 0
 geo.par.rz = 0
 geo.par.tx = 0
@@ -86,13 +78,13 @@ setp(geo, ['twosided'], True)
 # Aim the camera down at the floor screen (horizontal view only sees a sliver).
 if cam is not None:
     cam.par.tx = 0
-    cam.par.ty = 2.4
-    cam.par.tz = 5.0
-    setp(cam, ['lookat', 'lookatpath'], geo.path)
-    if par(cam, 'lookat') is None and par(cam, 'lookatpath') is None:
-        cam.par.rx = -28
-        cam.par.ry = 0
-        cam.par.rz = 0
+    cam.par.ty = 1.6
+    cam.par.tz = 0
+    setp(cam, ['lookat', 'lookatpath'], '')
+    cam.par.rx = -90
+    cam.par.ry = 0
+    cam.par.rz = 0
+    setp(cam, ['fov', 'fovx'], 70)
 
-print('fix_screen_render: material=', geo.par.material, 'rx=', geo.par.rx, 'laid_flat=', laid_flat)
+print('fix_screen_render: material=', geo.par.material, 'rx=', geo.par.rx)
 print('fix_screen_render: check OUT — you should see the floor screen facing the camera.')

@@ -159,15 +159,15 @@ rect.display = True
 rect.render = True
 screen_geo.render = True
 screen_geo.display = True
-# Prefer Rectangle SOP ZX plane (normal +Y). Extra rx=-90 on that plane
-# stands the screen on edge, so it disappears in OUT.
-laid_flat = False
-for val in ('zx', 'ZX', 'xz', 2):
-    if set_first_par(rect, ['orientation', 'orient', 'plane'], val):
-        laid_flat = True
-        break
-screen_geo.par.rx = 0 if laid_flat else -90
+# Default rectangle is XY (vertical). Rotate -90 so it lies on the floor.
+# Do not also set Orientation=ZX: that plus rx=-90 stands the screen on edge
+# and it disappears in OUT (especially with a downward look-at).
+screen_geo.par.rx = -90
+screen_geo.par.ry = 0
+screen_geo.par.rz = 0
+screen_geo.par.tx = 0
 screen_geo.par.ty = 0.05           # just above the floor to avoid z-fighting
+screen_geo.par.tz = 0
 screen_geo.par.material = screen_mat.path
 set_first_par(screen_mat, ['colormap'], 'screen_level')
 set_first_par(screen_mat, ['usecolormap', 'applycolormap', 'colormapon'], True)
@@ -274,10 +274,13 @@ set_first_par(light, ['quadatten', 'atten2', 'rolloff'], 0.8)
 cam = base.create(cameraCOMP, 'cam1')
 cam.nodeX, cam.nodeY = 1400, 200
 cam.par.tx = 0
-cam.par.ty = 2.4                   # slightly above eye height, looking down at the floor screen
-cam.par.tz = ROOM_D / 2 + 2.0
-if not set_first_par(cam, ['lookat', 'lookatpath'], screen_geo.path):
-    cam.par.rx = -28
+cam.par.ty = 1.6                   # standing eye height, looking straight down
+cam.par.tz = 0
+cam.par.rx = -90
+cam.par.ry = 0
+cam.par.rz = 0
+set_first_par(cam, ['lookat', 'lookatpath'], '')
+set_first_par(cam, ['fov', 'fovx'], 70)
 
 render = base.create(renderTOP, 'render1')
 render.nodeX, render.nodeY = 400, 0
